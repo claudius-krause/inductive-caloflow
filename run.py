@@ -28,8 +28,8 @@ parser.add_argument('--which_ds', default='2',
                     help='Which dataset to use: "2", "3" ')
 
 # todo: set which (subset) of the three flows tow work with/on
-parser.add_argument('--which_flow', type=int, default=3,
-                    help='Up to which flow to train/evaluate/generate. Default 3.')
+parser.add_argument('--which_flow', type=int, default=7,
+                    help='Which flow(s) to train/evaluate/generate. Default 7(=1+2+3).')
 parser.add_argument('--train', action='store_true', help='train the setup')
 parser.add_argument('--generate', action='store_true',
                     help='generate from a trained flow and plot')
@@ -250,21 +250,6 @@ def train_eval_flow_1(flow, optimizer, train_loader, test_loader, arg):
                 print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
                     epoch+1, num_epochs, idx+1, len(train_loader), loss.item()),
                       file=open(arg.results_file, 'a'))
-        # evaluate:
-        #loglike = []
-        #for idx, batch in enumerate(test_loader):
-        #    flow.eval()
-        #    e_dep = batch['energy_dep'].to(arg.device)
-        #    e_dep = logit_trafo(e_dep/6.5e4)
-        #    cond = torch.log10(batch['energy_inc'].to(arg.device))-4.5
-
-        #    with torch.no_grad():
-        #        loglike.append(flow.log_prob(e_dep, cond))
-
-        #logprobs = torch.cat(loglike, dim=0)
-
-        #logprob_mean = logprobs.mean(0)
-        #logprob_std = logprobs.var(0).sqrt()
 
         logprob_mean, logprob_std = eval_flow_1(test_loader, flow, arg)
 
@@ -275,21 +260,12 @@ def train_eval_flow_1(flow, optimizer, train_loader, test_loader, arg):
               file=open(arg.results_file, 'a'))
         if logprob_mean > best_LL:
             best_LL = logprob_mean
-            #torch.save({'model_state_dict': flow.state_dict()},
-            #           os.path.join(arg.output_dir, 'ds_{}_flow_1.pt'.format(arg.which_ds)))
-            #print("Model saved")
             save_flow(flow, 1, arg)
-    # load func:
-    #checkpoint = torch.load(os.path.join(args.output_dir, 'ds_{}_flow_1.pt'.format(arg.which_ds)),
-    #                        map_location=arg.device)
-    #flow.load_state_dict(checkpoint['model_state_dict'])
-    #flow.to(arg.device)
-    #flow.eval()
     flow = load_flow(flow, 1, arg)
 
 @torch.no_grad()
 def eval_flow_1(test_loader, flow, arg):
-    """ returns LL of data in dataloader """
+    """ returns LL of data in dataloader for flow 1"""
     loglike = []
     flow.eval()
     for _, batch in enumerate(test_loader):
@@ -326,13 +302,77 @@ def generate_flow_1(flow, arg, num_samples, energies=None):
           file=open(arg.results_file, 'a'))
     return 10**(energies + 4.5), samples
 
-def train_eval_flow_2(flow, optimizer, train_loader, test_loader):
+def train_eval_flow_2(flow, optimizer, train_loader, test_loader, arg):
     """ train flow 2, learning p(I_0|E_inc) eval after each epoch"""
-    # loop over epochs
-    # train one step
-    # evaluate
-    # load best epoch in last step
-    pass
+
+    num_epochs = 1000
+    best_LL = -np.inf
+    for epoch in range(num_epochs):
+        # train:
+        for idx, batch in enumerate(train_loader):
+            flow.train()
+            shower = batch['layer'].to(arg.device)
+            cond = torch.log10(batch['energy'].to(arg.device))-4.5
+            loss = - flow.log_prob(shower, cond).mean(0)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            if idx % 10 == 0:
+                print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
+                    epoch+1, num_epochs, idx+1, len(train_loader), loss.item()))
+                print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
+                    epoch+1, num_epochs, idx+1, len(train_loader), loss.item()),
+                      file=open(arg.results_file, 'a'))
+
+        logprb_mean, logprb_std = eval_flow_2(test_loader, flow, arg)
+
+        output = 'Evaluate (epoch {}) -- '.format(epoch+1) +\
+            'logp(x, at E(x)) = {:.3f} +/- {:.3f}'
+        print(output.format(logprb_mean, logprb_std))
+        print(output.format(logprb_mean, logprb_std),
+              file=open(arg.results_file, 'a'))
+        if logprob_mean > best_LL:
+            best_LL = logprob_mean
+            save_flow(flow, 2, arg)
+    flow = load_flow(flow, 2, arg)
+
+@torch.no_grad()
+def eval_flow_2(test_loader, flow, arg):
+    """ returns LL of data in dataloader for flow 2"""
+    loglike = []
+    flow.eval()
+    for _, batch in enumerate(test_loader):
+        shower = batch['layer'].to(arg.device)
+        cond = torch.log10(batch['energy'].to(arg.device))-4.5
+
+        loglike.append(flow.log_prob(shower, cond))
+
+    logprobs = torch.cat(loglike, dim=0)
+
+    logprb_mean = logprobs.mean(0)
+    logprb_std = logprobs.var(0).sqrt()
+
+    return logprb_mean, logprb_std
+
+@torch.no_grad()
+def generate_flow_2(flow, arg, incident_en, samp_1):
+    """ samples from flow 2 and returns I_0 for given E_0 and E_inc in MeV """
+    start_time = time.time()
+    cond = torch.log10(incident_en.to(arg.device))-4.5
+    samples = flow.sample(1, cond).reshape(len(cond), -1)
+    samples = inverse_logit(samples) * samp_1[:, 0]
+    samples = torch.where(samples < arg.noise_level, torch.zeros_like(samples), samples)
+    end_time = time.time()
+    total_time = end_time-start_time
+    time_string = "Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
+        " This means {:.2f} ms per event."
+    print(time_string.format(int(total_time//60), total_time%60, 1*len(incident_en),
+                             1, total_time*1e3 / (1*len(incident_en))))
+    print(time_string.format(int(total_time//60), total_time%60, 1*len(incident_en),
+                             1, total_time*1e3 / (1*len(incident_en))),
+          file=open(arg.results_file, 'a'))
+    return samples
 
 
 ###################################################################################################
@@ -361,7 +401,7 @@ if __name__ == '__main__':
     preprocessing_kwargs = {'with_noise': True, 'noise_level': 1e-4, 'apply_logit': True,
                             'do_normalization': True}
 
-    if args.which_flow >= 1:
+    if bin(args.which_flow)[-1] == 1:
         print("Working on Flow 1")
         print("Working on Flow 1", file=open(args.results_file, 'a'))
         train_loader_1, test_loader_1 = get_calo_dataloader(
@@ -388,7 +428,7 @@ if __name__ == '__main__':
             np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies.cpu().numpy())
             np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1.cpu().numpy())
 
-    elif args.which_flow >= 2:
+    if bin(args.which_flow)[-2] == 1:
         print("Working on Flow 2")
         print("Working on Flow 2", file=open(args.results_file, 'a'))
 
@@ -399,7 +439,37 @@ if __name__ == '__main__':
         flow_2, optimizer_2 = build_flow(LAYER_SIZE, 1, args)
 
         if args.train:
-            train_eval_flow_2()
+            train_eval_flow_2(flow_2, optimizer_2, train_loader_2, test_loader_2, args)
+
+        if args.evaluate:
+            flow_2 = load_flow(flow_2, 2, args)
+            logprob_mean, logprob_std = eval_flow_2(test_loader_2, flow_2, args)
+            output = 'Evaluate (flow 2) -- ' +\
+                'logp(x, at E(x)) = {:.3f} +/- {:.3f}'
+            print(output.format(logprob_mean, logprob_std))
+            print(output.format(logprob_mean, logprob_std),
+                  file=open(args.results_file, 'a'))
+
+        if args.generate:
+            flow_1, _ = build_flow(DEPTH, 1, args)
+            flow_1 = load_flow(flow_1, 1, args)
+            flow_2 = load_flow(flow_2, 2, args)
+            incident_energies, samples_1 = generate_flow_1(flow_1, args, 10000)
+            samples_2 = generate_flow_2(flow_2, args, incident_energies, samples_1)
+            np.save(os.path.join(args.output_dir, 'samples_2.npy'), samples_2.cpu().numpy())
+
+    if bin(args.which_flow)[-3] == 1:
+        print("Working on Flow 3")
+        print("Working on Flow 3", file=open(args.results_file, 'a'))
+
+        train_loader_3, test_loader_3 = get_calo_dataloader(
+            os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)), 3, args.device,
+            which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
+
+        flow_3, optimizer_3 = build_flow(LAYER_SIZE, 3+LAYER_SIZE, args)
+
+        if args.train:
+            train_eval_flow_3()
 
         if args.evaluate:
             pass
