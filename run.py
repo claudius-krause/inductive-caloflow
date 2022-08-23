@@ -315,7 +315,9 @@ def train_eval_flow_2(flow, optimizer, schedule, train_loader, test_loader, arg)
         for idx, batch in enumerate(train_loader):
             flow.train()
             shower = batch['layer'].to(arg.device)
-            cond = torch.log10(batch['energy'].to(arg.device))-4.5
+            cond_inc = torch.log10(batch['energy'].to(arg.device))-4.5
+            cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)
+            cond = torch.vstack([cond_inc.T, cond_dep.T]).T
             loss = - flow.log_prob(shower, cond).mean(0)
 
             optimizer.zero_grad()
@@ -348,7 +350,9 @@ def eval_flow_2(test_loader, flow, arg):
     flow.eval()
     for _, batch in enumerate(test_loader):
         shower = batch['layer'].to(arg.device)
-        cond = torch.log10(batch['energy'].to(arg.device))-4.5
+        cond_inc = torch.log10(batch['energy'].to(arg.device))-4.5
+        cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)
+        cond = torch.vstack([cond_inc.T, cond_dep.T]).T
 
         loglike.append(flow.log_prob(shower, cond))
 
@@ -363,7 +367,10 @@ def eval_flow_2(test_loader, flow, arg):
 def generate_flow_2(flow, arg, incident_en, samp_1):
     """ samples from flow 2 and returns I_0 for given E_0 and E_inc in MeV """
     start_time = time.time()
-    cond = torch.log10(incident_en.to(arg.device))-4.5
+    cond_inc = torch.log10(incident_en.to(arg.device))-4.5
+    cond_dep = logit_trafo(samp_1[:, 0].to(arg.device)/arg.normalization)
+    cond = torch.vstack([cond_inc.T, cond_dep.T]).T
+
     samples = flow.sample(1, cond).reshape(len(cond), -1)
     samples = inverse_logit(samples) * samp_1[:, 0]
     samples = torch.where(samples < arg.noise_level, torch.zeros_like(samples), samples)
@@ -440,7 +447,7 @@ if __name__ == '__main__':
             os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)), 2, args.device,
             which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
-        flow_2, optimizer_2, schedule_2 = build_flow(LAYER_SIZE, 1, args)
+        flow_2, optimizer_2, schedule_2 = build_flow(LAYER_SIZE, 2, args)
 
         if args.train:
             train_eval_flow_2(flow_2, optimizer_2, schedule_2, train_loader_2, test_loader_2, args)
