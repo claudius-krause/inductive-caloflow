@@ -9,6 +9,7 @@
 
 import argparse
 import os
+import time
 
 import torch
 import torch.nn.functional as F
@@ -52,8 +53,8 @@ parser.add_argument('--data_dir', default='/home/claudius/ML_source/CaloChalleng
 
 
 
-parser.add_argument('--noise_level', default=1e-4,
-                    help='What level of noise to add to training data. Default is 1e-4')
+parser.add_argument('--noise_level', default=1.5e-2,
+                    help='What level of noise to add to training data. Default is 1.5e-2')
 
 # MAF parameters
 parser.add_argument('--n_blocks', type=int, default='8',
@@ -236,7 +237,7 @@ def train_eval_flow_1(flow, optimizer, train_loader, test_loader, arg):
         for idx, batch in enumerate(train_loader):
             flow.train()
             e_dep = batch['energy_dep'].to(arg.device)
-            e_dep = logit_trafo(e_dep/6.5e4)
+            e_dep = logit_trafo(e_dep/arg.normalization)
             cond = torch.log10(batch['energy_inc'].to(arg.device))-4.5
             loss = - flow.log_prob(e_dep, cond).mean(0)
 
@@ -286,24 +287,44 @@ def train_eval_flow_1(flow, optimizer, train_loader, test_loader, arg):
     #flow.eval()
     flow = load_flow(flow, 1, arg)
 
+@torch.no_grad()
 def eval_flow_1(test_loader, flow, arg):
     """ returns LL of data in dataloader """
     loglike = []
     flow.eval()
     for _, batch in enumerate(test_loader):
         e_dep = batch['energy_dep'].to(arg.device)
-        e_dep = logit_trafo(e_dep/6.5e4)
+        e_dep = logit_trafo(e_dep/arg.normalization)
         cond = torch.log10(batch['energy_inc'].to(arg.device))-4.5
 
-        with torch.no_grad():
-            loglike.append(flow.log_prob(e_dep, cond))
+        loglike.append(flow.log_prob(e_dep, cond))
 
     logprobs = torch.cat(loglike, dim=0)
 
-    logprob_mean = logprobs.mean(0)
-    logprob_std = logprobs.var(0).sqrt()
+    logprb_mean = logprobs.mean(0)
+    logprb_std = logprobs.var(0).sqrt()
 
-    return logprob_mean, logprob_std
+    return logprb_mean, logprb_std
+
+@torch.no_grad()
+def generate_flow_1(flow, arg, num_samples, energies=None):
+    """ samples from flow 1 and returns E_i and E_inc in MeV """
+    start_time = time.time()
+    if energies is None:
+        energies = (torch.rand(size=(num_samples, 1))*3. - 1.5).to(arg.device)
+    samples = flow.sample(1, energies).reshape(len(energies), -1)
+    samples = inverse_logit(samples) * arg.normalization
+    samples = torch.where(samples < arg.noise_level, torch.zeros_like(samples), samples)
+    end_time = time.time()
+    total_time = end_time-start_time
+    time_string = "Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
+        " This means {:.2f} ms per event."
+    print(time_string.format(int(total_time//60), total_time%60, 1*len(energies),
+                             1, total_time*1e3 / (1*len(energies))))
+    print(time_string.format(int(total_time//60), total_time%60, 1*len(energies),
+                             1, total_time*1e3 / (1*len(energies))),
+          file=open(arg.results_file, 'a'))
+    return 10**(energies + 4.5), samples
 
 def train_eval_flow_2(flow, optimizer, train_loader, test_loader):
     """ train flow 2, learning p(I_0|E_inc) eval after each epoch"""
@@ -323,6 +344,7 @@ if __name__ == '__main__':
 
     LAYER_SIZE = {'2': 9 * 16, '3': 18 * 50}[args.which_ds]
     DEPTH = 45
+    args.normalization = 6.5e4
 
     # check if output_dir exists and 'move' results file there
     if not os.path.isdir(args.output_dir):
@@ -362,13 +384,29 @@ if __name__ == '__main__':
 
         if args.generate:
             flow_1 = load_flow(flow_1, 1, args)
+            incident_energies, samples_1 = generate_flow_1(flow_1, args, 10000)
+            np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies.cpu().numpy())
+            np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1.cpu().numpy())
+
+    elif args.which_flow >= 2:
+        print("Working on Flow 2")
+        print("Working on Flow 2", file=open(args.results_file, 'a'))
+
+        train_loader_2, test_loader_2 = get_calo_dataloader(
+            os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)), 2, args.device,
+            which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
+
+        flow_2, optimizer_2 = build_flow(LAYER_SIZE, 1, args)
+
+        if args.train:
+            train_eval_flow_2()
+
+        if args.evaluate:
+            pass
+
+        if args.generate:
             pass
 
 
-    train_loader_2, test_loader_2 = get_calo_dataloader(
-        os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)), 2, args.device,
-        which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
-
-    flow_2, optimizer_2 = build_flow(LAYER_SIZE, 1, args)
-
-    train_eval_flow_2()
+    print("DONE with everything!")
+    print("DONE with everything!", file=open(args.results_file, 'a'))
