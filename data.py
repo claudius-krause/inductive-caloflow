@@ -146,13 +146,13 @@ class CaloDataShowerShape(Dataset):
 
         #get the previous layers, and normalize
         #layer 0 gets zeros for the previous layer
-        self.layer_p = np.zeros_like(showers)
-        self.layer_p[:, 1:, :] = showers[:, :-1, :]
+        self.layer_p = np.zeros_like(self.layer)
+        self.layer_p[:, 1:, :] = self.layer[:, :-1, :]
 
         self.layer = self.layer.reshape(-1, self.layer_size)
         self.layer_p = self.layer_p.reshape(-1, self.layer_size)
 
-        self.layer_number = np.tile(range(self.depth), len(self.E_inc))
+        self.layer_number = np.tile(range(self.depth), int(len(self.E_inc)/self.depth))
 
         if self.which_layer == -1:
             mask = (self.layer_number > 0)
