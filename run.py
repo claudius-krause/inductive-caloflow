@@ -217,7 +217,9 @@ def build_flow(features, context_features, arg):
 
     model = flow.to(arg.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-    #lr_schedule = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[800, 900], gamma=0.5, verbose=True)
+    lr_schedule = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                                                       milestones=[400, 500], gamma=0.5,
+                                                       verbose=True)
     print(model)
     print(model, file=open(arg.results_file, 'a'))
 
@@ -225,12 +227,12 @@ def build_flow(features, context_features, arg):
     total_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("Flow has {} parameters".format(total_parameters))
     print("Flow has {} parameters".format(total_parameters), file=open(arg.results_file, 'a'))
-    return model, optimizer
+    return model, optimizer, lr_schedule
 
-def train_eval_flow_1(flow, optimizer, train_loader, test_loader, arg):
+def train_eval_flow_1(flow, optimizer, schedule, train_loader, test_loader, arg):
     """ train flow 1, learning p(E_i|E_inc), eval after each epoch """
 
-    num_epochs = 1000
+    num_epochs = 600
     best_LL = -np.inf
     for epoch in range(num_epochs):
         # train:
@@ -251,16 +253,17 @@ def train_eval_flow_1(flow, optimizer, train_loader, test_loader, arg):
                     epoch+1, num_epochs, idx+1, len(train_loader), loss.item()),
                       file=open(arg.results_file, 'a'))
 
-        logprob_mean, logprob_std = eval_flow_1(test_loader, flow, arg)
+        logprb_mean, logprb_std = eval_flow_1(test_loader, flow, arg)
 
         output = 'Evaluate (epoch {}) -- '.format(epoch+1) +\
             'logp(x, at E(x)) = {:.3f} +/- {:.3f}'
-        print(output.format(logprob_mean, logprob_std))
-        print(output.format(logprob_mean, logprob_std),
+        print(output.format(logprb_mean, logprb_std))
+        print(output.format(logprb_mean, logprb_std),
               file=open(arg.results_file, 'a'))
-        if logprob_mean > best_LL:
-            best_LL = logprob_mean
+        if logprb_mean > best_LL:
+            best_LL = logprb_mean
             save_flow(flow, 1, arg)
+        schedule.step()
     flow = load_flow(flow, 1, arg)
 
 @torch.no_grad()
@@ -302,10 +305,10 @@ def generate_flow_1(flow, arg, num_samples, energies=None):
           file=open(arg.results_file, 'a'))
     return 10**(energies + 4.5), samples
 
-def train_eval_flow_2(flow, optimizer, train_loader, test_loader, arg):
+def train_eval_flow_2(flow, optimizer, schedule, train_loader, test_loader, arg):
     """ train flow 2, learning p(I_0|E_inc) eval after each epoch"""
 
-    num_epochs = 1000
+    num_epochs = 750
     best_LL = -np.inf
     for epoch in range(num_epochs):
         # train:
@@ -332,9 +335,10 @@ def train_eval_flow_2(flow, optimizer, train_loader, test_loader, arg):
         print(output.format(logprb_mean, logprb_std))
         print(output.format(logprb_mean, logprb_std),
               file=open(arg.results_file, 'a'))
-        if logprob_mean > best_LL:
-            best_LL = logprob_mean
+        if logprb_mean > best_LL:
+            best_LL = logprb_mean
             save_flow(flow, 2, arg)
+        schedule.step()
     flow = load_flow(flow, 2, arg)
 
 @torch.no_grad()
@@ -401,17 +405,17 @@ if __name__ == '__main__':
     preprocessing_kwargs = {'with_noise': True, 'noise_level': 1e-4, 'apply_logit': True,
                             'do_normalization': True}
 
-    if bin(args.which_flow)[-1] == 1:
+    if bin(args.which_flow)[-1] == '1':
         print("Working on Flow 1")
         print("Working on Flow 1", file=open(args.results_file, 'a'))
         train_loader_1, test_loader_1 = get_calo_dataloader(
             os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)), 1, args.device,
             which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
-        flow_1, optimizer_1 = build_flow(DEPTH, 1, args)
+        flow_1, optimizer_1, schedule_1 = build_flow(DEPTH, 1, args)
 
         if args.train:
-            train_eval_flow_1(flow_1, optimizer_1, train_loader_1, test_loader_1, args)
+            train_eval_flow_1(flow_1, optimizer_1, schedule_1, train_loader_1, test_loader_1, args)
 
         if args.evaluate:
             flow_1 = load_flow(flow_1, 1, args)
@@ -428,7 +432,7 @@ if __name__ == '__main__':
             np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies.cpu().numpy())
             np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1.cpu().numpy())
 
-    if bin(args.which_flow)[-2] == 1:
+    if bin(args.which_flow)[-2] == '1':
         print("Working on Flow 2")
         print("Working on Flow 2", file=open(args.results_file, 'a'))
 
@@ -436,10 +440,10 @@ if __name__ == '__main__':
             os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)), 2, args.device,
             which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
-        flow_2, optimizer_2 = build_flow(LAYER_SIZE, 1, args)
+        flow_2, optimizer_2, schedule_2 = build_flow(LAYER_SIZE, 1, args)
 
         if args.train:
-            train_eval_flow_2(flow_2, optimizer_2, train_loader_2, test_loader_2, args)
+            train_eval_flow_2(flow_2, optimizer_2, schedule_2, train_loader_2, test_loader_2, args)
 
         if args.evaluate:
             flow_2 = load_flow(flow_2, 2, args)
@@ -451,14 +455,14 @@ if __name__ == '__main__':
                   file=open(args.results_file, 'a'))
 
         if args.generate:
-            flow_1, _ = build_flow(DEPTH, 1, args)
+            flow_1, _, _ = build_flow(DEPTH, 1, args)
             flow_1 = load_flow(flow_1, 1, args)
             flow_2 = load_flow(flow_2, 2, args)
             incident_energies, samples_1 = generate_flow_1(flow_1, args, 10000)
             samples_2 = generate_flow_2(flow_2, args, incident_energies, samples_1)
             np.save(os.path.join(args.output_dir, 'samples_2.npy'), samples_2.cpu().numpy())
 
-    if bin(args.which_flow)[-3] == 1:
+    if bin(args.which_flow)[-3] == '1':
         print("Working on Flow 3")
         print("Working on Flow 3", file=open(args.results_file, 'a'))
 
@@ -466,7 +470,7 @@ if __name__ == '__main__':
             os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)), 3, args.device,
             which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
-        flow_3, optimizer_3 = build_flow(LAYER_SIZE, 3+LAYER_SIZE, args)
+        flow_3, optimizer_3, _ = build_flow(LAYER_SIZE, 3+LAYER_SIZE, args)
 
         if args.train:
             train_eval_flow_3()

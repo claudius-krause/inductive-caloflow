@@ -186,11 +186,11 @@ class CaloDataShowerShape(Dataset):
 
             if self.which_layer != 0:
                 energy_dep_p = add_noise(energy_dep_p, noise_level=self.noise_level)
-                layern = add_noise(layer_p, noise_level=self.noise_level) #/self.normalization)
+                layer_p = add_noise(layer_p, noise_level=self.noise_level) #/self.normalization)
 
         if self.do_normalization:
             layer = layer/(energy_dep+self.noise_level)
-            layern = layern/(energy_dep_p+self.noise_level)
+            layer_p = layer_p/(energy_dep_p+self.noise_level)
 
             #energy_dep = energy_dep/self.normalization
             #energy_depn = energy_depn/self.normalization
@@ -199,7 +199,7 @@ class CaloDataShowerShape(Dataset):
             layer = logit_trafo(layer)
             #energy_dep = logit_trafo(energy_dep)
             if self.which_layer != 0:
-                layer_p = logit_trafo(layern)
+                layer_p = logit_trafo(layer_p)
                 #energy_dep_p = logit_trafo(energy_depn)
 
         sample = {'layer': layer, 'layer_p': layer_p, 'energy': energy,
