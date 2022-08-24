@@ -102,6 +102,11 @@ def inverse_logit(x, clamp_low=0., clamp_high=1.):
     """ inverts logit_trafo(), clips result if needed """
     return ((sigmoid(x) - ALPHA) / (1. - 2.*ALPHA)).clamp(clamp_low, clamp_high)
 
+def add_noise(input_array, noise_level=1e-4):
+    """ adds a bit of noise """
+    noise = (torch.rand(size=input_array.size())*noise_level).to(input_array.device)
+    return (input_array+noise)/(1.+noise_level)
+
 def save_flow(model, number, arg):
     """ saves model to file """
     torch.save({'model_state_dict': model.state_dict()},
@@ -470,19 +475,18 @@ def generate_flow_3(flow, arg, incident_en, samp_1, samp_2):
     for i in range(1, 45):
         cond_dep = logit_trafo(samp_1[:, i].to(arg.device)/arg.normalization)
         cond_dep_p = logit_trafo(samp_1[:, i-1].to(arg.device)/arg.normalization)
-        cond_p = full_sample[-1].to(arg.device)
+        cond_p = add_noise(full_sample[-1].to(arg.device), noise_level=arg.noise_level)
         cond_p = logit_trafo(cond_p / cond_p.sum(dim=-1, keepdims=True))
         cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T]).T
 
         samples = flow.sample(1, cond).reshape(len(cond), -1)
         samples = inverse_logit(samples)
         samples = samples/samples.sum(dim=-1, keepdims=True)* samp_1[:, i].reshape(-1, 1)
+        samples = torch.where(samples < arg.noise_level, torch.zeros_like(samples), samples)
         full_sample.append(samples)
         print("Done sampling Calolayer {}/44.".format(i))
     end_time = time.time()
     full_sample = torch.cat(full_sample, dim=-1)
-    full_sample = torch.where(full_sample < arg.noise_level, torch.zeros_like(full_sample),
-                              full_sample)
     total_time = end_time-start_time
     time_string = "Flow 3: Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
         " This means {:.2f} ms per event."
@@ -532,9 +536,11 @@ if __name__ == '__main__':
     if bin(args.which_flow)[-1] == '1':
         print("Working on Flow 1")
         print("Working on Flow 1", file=open(args.results_file, 'a'))
-        train_loader_1, test_loader_1 = get_calo_dataloader(
-            os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)), 1, args.device,
-            which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
+        if args.train or args.evaluate:
+            train_loader_1, test_loader_1 = get_calo_dataloader(
+                os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)),
+                1, args.device,
+                which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
         flow_1, optimizer_1, schedule_1 = build_flow(DEPTH, 1, args)
 
@@ -560,9 +566,11 @@ if __name__ == '__main__':
         print("Working on Flow 2")
         print("Working on Flow 2", file=open(args.results_file, 'a'))
 
-        train_loader_2, test_loader_2 = get_calo_dataloader(
-            os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)), 2, args.device,
-            which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
+        if args.train or args.evaluate:
+            train_loader_2, test_loader_2 = get_calo_dataloader(
+                os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)),
+                2, args.device,
+                which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
         flow_2, optimizer_2, schedule_2 = build_flow(LAYER_SIZE, 2, args)
 
@@ -590,9 +598,11 @@ if __name__ == '__main__':
         print("Working on Flow 3")
         print("Working on Flow 3", file=open(args.results_file, 'a'))
 
-        train_loader_3, test_loader_3 = get_calo_dataloader(
-            os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)), 3, args.device,
-            which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
+        if args.train or args.evaluate:
+            train_loader_3, test_loader_3 = get_calo_dataloader(
+                os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)),
+                3, args.device,
+                which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
         flow_3, optimizer_3, schedule_3 = build_flow(LAYER_SIZE, 3+LAYER_SIZE, args)
 
