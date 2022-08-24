@@ -296,7 +296,7 @@ def generate_flow_1(flow, arg, num_samples, energies=None):
     samples = torch.where(samples < arg.noise_level, torch.zeros_like(samples), samples)
     end_time = time.time()
     total_time = end_time-start_time
-    time_string = "Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
+    time_string = "Flow 1: Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
         " This means {:.2f} ms per event."
     print(time_string.format(int(total_time//60), total_time%60, 1*len(energies),
                              1, total_time*1e3 / (1*len(energies))))
@@ -372,11 +372,12 @@ def generate_flow_2(flow, arg, incident_en, samp_1):
     cond = torch.vstack([cond_inc.T, cond_dep.T]).T
 
     samples = flow.sample(1, cond).reshape(len(cond), -1)
-    samples = inverse_logit(samples) * samp_1[:, 0]
+    samples = inverse_logit(samples)
+    samples = samples/samples.sum(dim=-1, keepdims=True)* samp_1[:, 0].reshape(-1, 1)
     samples = torch.where(samples < arg.noise_level, torch.zeros_like(samples), samples)
     end_time = time.time()
     total_time = end_time-start_time
-    time_string = "Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
+    time_string = "Flow 2: Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
         " This means {:.2f} ms per event."
     print(time_string.format(int(total_time//60), total_time%60, 1*len(incident_en),
                              1, total_time*1e3 / (1*len(incident_en))))
