@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from nflows import transforms, distributions, flows
+import h5py
 
 from data import get_calo_dataloader
 
@@ -27,7 +28,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--which_ds', default='2',
                     help='Which dataset to use: "2", "3" ')
 
-# todo: set which (subset) of the three flows tow work with/on
+# which flow uses bit flags: flow 1 counts 1, flow 2 counts 2, flow 3 counts 4.
+# sum up which ones you want to work with
 parser.add_argument('--which_flow', type=int, default=7,
                     help='Which flow(s) to train/evaluate/generate. Default 7(=1+2+3).')
 parser.add_argument('--train', action='store_true', help='train the setup')
@@ -306,7 +308,7 @@ def generate_flow_1(flow, arg, num_samples, energies=None):
     return 10**(energies + 4.5), samples
 
 def train_eval_flow_2(flow, optimizer, schedule, train_loader, test_loader, arg):
-    """ train flow 2, learning p(I_0|E_inc) eval after each epoch"""
+    """ train flow 2, learning p(I_0|E_0, E_inc) eval after each epoch"""
 
     num_epochs = 750
     best_LL = -np.inf
@@ -386,6 +388,120 @@ def generate_flow_2(flow, arg, incident_en, samp_1):
           file=open(arg.results_file, 'a'))
     return samples
 
+def train_eval_flow_3(flow, optimizer, schedule, train_loader, test_loader, arg):
+    """ train flow 3, learning p(I_n|I_(n-1), E_n, E_(n-1), E_inc) eval after each epoch"""
+
+    num_epochs = 15 # (dataset is 44x larger)
+    best_LL = -np.inf
+    for epoch in range(num_epochs):
+        # train:
+        for idx, batch in enumerate(train_loader):
+            flow.train()
+            shower = batch['layer'].to(arg.device)
+            cond_inc = torch.log10(batch['energy'].to(arg.device))-4.5
+            cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)
+            cond_dep_p = logit_trafo(batch['energy_dep_p'].to(arg.device)/arg.normalization)
+            cond_p = batch['layer_p'].to(arg.device)
+            cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T]).T
+            loss = - flow.log_prob(shower, cond).mean(0)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            if idx % 25 == 0:
+                print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
+                    epoch+1, num_epochs, idx+1, len(train_loader), loss.item()))
+                print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
+                    epoch+1, num_epochs, idx+1, len(train_loader), loss.item()),
+                      file=open(arg.results_file, 'a'))
+            if idx % 100 == 0: # since dataset is so large
+                logprb_mean, logprb_std = eval_flow_3(test_loader, flow, arg)
+
+                output = 'Intermediate evaluate (epoch {}) -- '.format(epoch+1) +\
+                    'logp(x, at E(x)) = {:.3f} +/- {:.3f}'
+                print(output.format(logprb_mean, logprb_std))
+                print(output.format(logprb_mean, logprb_std),
+                      file=open(arg.results_file, 'a'))
+                if logprb_mean > best_LL:
+                    best_LL = logprb_mean
+                    save_flow(flow, 3, arg)
+
+        logprb_mean, logprb_std = eval_flow_3(test_loader, flow, arg)
+
+        output = 'Evaluate (epoch {}) -- '.format(epoch+1) +\
+            'logp(x, at E(x)) = {:.3f} +/- {:.3f}'
+        print(output.format(logprb_mean, logprb_std))
+        print(output.format(logprb_mean, logprb_std),
+              file=open(arg.results_file, 'a'))
+        if logprb_mean > best_LL:
+            best_LL = logprb_mean
+            save_flow(flow, 3, arg)
+        schedule.step()
+    flow = load_flow(flow, 3, arg)
+
+@torch.no_grad()
+def eval_flow_3(test_loader, flow, arg):
+    """ returns LL of data in dataloader for flow 3"""
+    loglike = []
+    flow.eval()
+    for _, batch in enumerate(test_loader):
+        shower = batch['layer'].to(arg.device)
+        cond_inc = torch.log10(batch['energy'].to(arg.device))-4.5
+        cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)
+        cond_dep_p = logit_trafo(batch['energy_dep_p'].to(arg.device)/arg.normalization)
+        cond_p = batch['layer_p'].to(arg.device)
+        cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T]).T
+
+        loglike.append(flow.log_prob(shower, cond))
+
+    logprobs = torch.cat(loglike, dim=0)
+
+    logprb_mean = logprobs.mean(0)
+    logprb_std = logprobs.var(0).sqrt()
+
+    return logprb_mean, logprb_std
+
+@torch.no_grad()
+def generate_flow_3(flow, arg, incident_en, samp_1, samp_2):
+    """ samples from flow 2 and returns I_0 for given E_0 and E_inc in MeV """
+    start_time = time.time()
+    full_sample = [samp_2]
+    cond_inc = torch.log10(incident_en.to(arg.device))-4.5
+    for i in range(1, 45):
+        cond_dep = logit_trafo(samp_1[:, i].to(arg.device)/arg.normalization)
+        cond_dep_p = logit_trafo(samp_1[:, i-1].to(arg.device)/arg.normalization)
+        cond_p = full_sample[-1].to(arg.device)
+        cond_p = logit_trafo(cond_p / cond_p.sum(dim=-1, keepdims=True))
+        cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T]).T
+
+        samples = flow.sample(1, cond).reshape(len(cond), -1)
+        samples = inverse_logit(samples)
+        samples = samples/samples.sum(dim=-1, keepdims=True)* samp_1[:, i].reshape(-1, 1)
+        full_sample.append(samples)
+        print("Done sampling Calolayer {}/44.".format(i))
+    end_time = time.time()
+    full_sample = torch.cat(full_sample, dim=-1)
+    full_sample = torch.where(full_sample < arg.noise_level, torch.zeros_like(full_sample),
+                              full_sample)
+    total_time = end_time-start_time
+    time_string = "Flow 3: Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
+        " This means {:.2f} ms per event."
+    print(time_string.format(int(total_time//60), total_time%60, 1*len(incident_en),
+                             1, total_time*1e3 / (1*len(incident_en))))
+    print(time_string.format(int(total_time//60), total_time%60, 1*len(incident_en),
+                             1, total_time*1e3 / (1*len(incident_en))),
+          file=open(arg.results_file, 'a'))
+    return full_sample
+
+def save_to_file(incident, shower, arg):
+    """ saves incident energies and showers to hdf5 file """
+    filename = os.path.join(arg.output_dir, 'inductive_ds_{}.hdf5'.format(arg.which_ds))
+    dataset_file = h5py.File(filename, 'w')
+    dataset_file.create_dataset('incident_energies',
+                                data=incident.reshape(len(incident), -1), compression='gzip')
+    dataset_file.create_dataset('showers',
+                                data=shower.reshape(len(shower), -1), compression='gzip')
+    dataset_file.close()
 
 ###################################################################################################
 #######################################   running the code   ######################################
@@ -478,16 +594,43 @@ if __name__ == '__main__':
             os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)), 3, args.device,
             which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
-        flow_3, optimizer_3, _ = build_flow(LAYER_SIZE, 3+LAYER_SIZE, args)
+        flow_3, optimizer_3, schedule_3 = build_flow(LAYER_SIZE, 3+LAYER_SIZE, args)
 
         if args.train:
-            train_eval_flow_3()
+            train_eval_flow_3(flow_3, optimizer_3, schedule_3, train_loader_3, test_loader_3, args)
 
         if args.evaluate:
-            pass
+            flow_3 = load_flow(flow_3, 3, args)
+            logprob_mean, logprob_std = eval_flow_3(test_loader_3, flow_3, args)
+            output = 'Evaluate (flow 3) -- ' +\
+                'logp(x, at E(x)) = {:.3f} +/- {:.3f}'
+            print(output.format(logprob_mean, logprob_std))
+            print(output.format(logprob_mean, logprob_std),
+                  file=open(args.results_file, 'a'))
 
         if args.generate:
-            pass
+            num_events = 10000
+            full_start_time = time.time()
+            flow_1, _, _ = build_flow(DEPTH, 1, args)
+            flow_1 = load_flow(flow_1, 1, args)
+            flow_2, _, _ = build_flow(LAYER_SIZE, 2, args)
+            flow_2 = load_flow(flow_2, 2, args)
+            flow_3 = load_flow(flow_3, 3, args)
+            incident_energies, samples_1 = generate_flow_1(flow_1, args, num_events)
+            samples_2 = generate_flow_2(flow_2, args, incident_energies, samples_1)
+            samples_3 = generate_flow_3(flow_3, args, incident_energies, samples_1, samples_2)
+            full_end_time = time.time()
+            save_to_file(incident_energies.cpu().numpy(), samples_3.cpu().numpy(), args)
+
+            full_total_time = full_end_time - full_start_time
+            time_str = "Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
+                " This means {:.2f} ms per event."
+            print(time_str.format(int(full_total_time//60), full_total_time%60, num_events,
+                                  1, full_total_time*1e3 / (num_events)))
+            print(time_str.format(int(full_total_time//60), full_total_time%60, num_events,
+                                  1, full_total_time*1e3 / (num_events)),
+                  file=open(args.results_file, 'a'))
+
 
 
     print("DONE with everything!")
