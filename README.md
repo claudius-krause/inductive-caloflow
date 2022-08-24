@@ -15,3 +15,19 @@ Generation of showers is done sequentially. For given $E_\text{inc}$, on first s
 
 ## Usage
 
+To train all 3 flows, one after another, run the code with
+```python run.py --which_ds 2 --which_flow 7 --train --data_dir path/to/hdf5_dataset_folder```
+
+Here, `--which_ds` specifies which dataset is used (2 or 3); `--which_flow` specifies which subset of the 3 flows is worked with; and `--data_dir` points to the folder in which the `dataset_X_1.hdf5` files are located. The subset of flows to be worked with are encoded in a binary sum: flow 1 is contributes 1, flow 2 contributes 2, and flow 3 contributes 4. Training all 3 flows means `--which_flow` is 1+2+4=7. Only training flow 1 and 3 means `--which_flow` is 1+4=5, etc.
+
+To evaluate the flows, i.e. getting the LL of the test set, run
+
+```python run.py --which_ds 2 --which_flow 7 --evaluate --data_dir path/to/hdf5_dataset_folder```
+
+The LLs should be (close to) the ones you saw in training when the best model was saved.
+
+To generate full showers, you only need to generate from flow 3, as that requires sampling from flows 1 and 2 and is done automatically:
+
+```python run.py --which_ds 2 --which_flow 4 --generate --data_dir path/to/hdf5_dataset_folder```
+
+Final samples as well as model checkpoints are stored at `results/`. This folder can be changed by adding the flag `--output_dir new_location/` when running the code. Output that is printed on screen while training/evaluating/generating is also saved at `results/results.txt`.
