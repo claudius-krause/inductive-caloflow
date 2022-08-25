@@ -55,7 +55,7 @@ parser.add_argument('--data_dir', default='/home/claudius/ML_source/CaloChalleng
 
 
 
-parser.add_argument('--noise_level', default=1.5e-2,
+parser.add_argument('--noise_level', type=float, default=1.5e-2,
                     help='What level of noise to add to training data. Default is 1.5e-2')
 
 # MAF parameters
@@ -419,7 +419,7 @@ def train_eval_flow_3(flow, optimizer, schedule, train_loader, test_loader, arg)
                 print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
                     epoch+1, num_epochs, idx+1, len(train_loader), loss.item()),
                       file=open(arg.results_file, 'a'))
-            if idx % 100 == 0: # since dataset is so large
+            if idx % 250 == 0: # since dataset is so large
                 logprb_mean, logprb_std = eval_flow_3(test_loader, flow, arg)
 
                 output = 'Intermediate evaluate (epoch {}) -- '.format(epoch+1) +\
