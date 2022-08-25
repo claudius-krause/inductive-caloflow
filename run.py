@@ -456,7 +456,6 @@ def eval_flow_3(test_loader, flow, arg):
         cond_dep_p = logit_trafo(batch['energy_dep_p'].to(arg.device)/arg.normalization)
         cond_p = batch['layer_p'].to(arg.device)
         cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T]).T
-
         loglike.append(flow.log_prob(shower, cond))
 
     logprobs = torch.cat(loglike, dim=0)
@@ -478,7 +477,6 @@ def generate_flow_3(flow, arg, incident_en, samp_1, samp_2):
         cond_p = add_noise(full_sample[-1].to(arg.device), noise_level=arg.noise_level)
         cond_p = logit_trafo(cond_p / cond_p.sum(dim=-1, keepdims=True))
         cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T]).T
-
         samples = flow.sample(1, cond).reshape(len(cond), -1)
         samples = inverse_logit(samples)
         samples = samples/samples.sum(dim=-1, keepdims=True)* samp_1[:, i].reshape(-1, 1)
@@ -530,7 +528,9 @@ if __name__ == '__main__':
     print("Using {}".format(args.device))
     print("Using {}".format(args.device), file=open(args.results_file, 'a'))
 
-    preprocessing_kwargs = {'with_noise': True, 'noise_level': 1e-4, 'apply_logit': True,
+    preprocessing_kwargs = {'with_noise': True,
+                            'noise_level': args.noise_level,
+                            'apply_logit': True,
                             'do_normalization': True}
 
     if bin(args.which_flow)[-1] == '1':
@@ -595,6 +595,7 @@ if __name__ == '__main__':
             np.save(os.path.join(args.output_dir, 'samples_2.npy'), samples_2.cpu().numpy())
 
     if bin(args.which_flow)[-3] == '1':
+        # TODO: one-hot encoded layer-number
         print("Working on Flow 3")
         print("Working on Flow 3", file=open(args.results_file, 'a'))
 
