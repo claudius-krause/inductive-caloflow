@@ -55,8 +55,10 @@ parser.add_argument('--data_dir', default='/home/claudius/ML_source/CaloChalleng
 
 
 
-parser.add_argument('--noise_level', type=float, default=1.5e-2,
-                    help='What level of noise to add to training data. Default is 1.5e-2')
+parser.add_argument('--noise_level', type=float, default=5e-3,
+                    help='What level of noise to add to training data. Default is 5e-3')
+parser.add_argument('--threshold_cut', type=float, default=1.5e-2,
+                    help='What cut to apply after generation. Default is 1.5e-2')
 
 # MAF parameters
 parser.add_argument('--n_blocks', type=int, default='8',
@@ -300,7 +302,7 @@ def generate_flow_1(flow, arg, num_samples, energies=None):
         energies = (torch.rand(size=(num_samples, 1))*3. - 1.5).to(arg.device)
     samples = flow.sample(1, energies).reshape(len(energies), -1)
     samples = inverse_logit(samples) * arg.normalization
-    samples = torch.where(samples < arg.noise_level, torch.zeros_like(samples), samples)
+    samples = torch.where(samples < arg.threshold_cut, torch.zeros_like(samples), samples)
     end_time = time.time()
     total_time = end_time-start_time
     time_string = "Flow 1: Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
@@ -323,7 +325,7 @@ def train_eval_flow_2(flow, optimizer, schedule, train_loader, test_loader, arg)
             flow.train()
             shower = batch['layer'].to(arg.device)
             cond_inc = torch.log10(batch['energy'].to(arg.device))-4.5
-            cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)
+            cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)/4.
             cond = torch.vstack([cond_inc.T, cond_dep.T]).T
             loss = - flow.log_prob(shower, cond).mean(0)
 
@@ -358,7 +360,7 @@ def eval_flow_2(test_loader, flow, arg):
     for _, batch in enumerate(test_loader):
         shower = batch['layer'].to(arg.device)
         cond_inc = torch.log10(batch['energy'].to(arg.device))-4.5
-        cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)
+        cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)/4.
         cond = torch.vstack([cond_inc.T, cond_dep.T]).T
 
         loglike.append(flow.log_prob(shower, cond))
@@ -375,13 +377,13 @@ def generate_flow_2(flow, arg, incident_en, samp_1):
     """ samples from flow 2 and returns I_0 for given E_0 and E_inc in MeV """
     start_time = time.time()
     cond_inc = torch.log10(incident_en.to(arg.device))-4.5
-    cond_dep = logit_trafo(samp_1[:, 0].to(arg.device)/arg.normalization)
+    cond_dep = logit_trafo(samp_1[:, 0].to(arg.device)/arg.normalization)/4.
     cond = torch.vstack([cond_inc.T, cond_dep.T]).T
 
     samples = flow.sample(1, cond).reshape(len(cond), -1)
     samples = inverse_logit(samples)
     samples = samples/samples.sum(dim=-1, keepdims=True)* samp_1[:, 0].reshape(-1, 1)
-    samples = torch.where(samples < arg.noise_level, torch.zeros_like(samples), samples)
+    samples = torch.where(samples < arg.threshold_cut, torch.zeros_like(samples), samples)
     end_time = time.time()
     total_time = end_time-start_time
     time_string = "Flow 2: Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
@@ -480,7 +482,7 @@ def generate_flow_3(flow, arg, incident_en, samp_1, samp_2):
         samples = flow.sample(1, cond).reshape(len(cond), -1)
         samples = inverse_logit(samples)
         samples = samples/samples.sum(dim=-1, keepdims=True)* samp_1[:, i].reshape(-1, 1)
-        samples = torch.where(samples < arg.noise_level, torch.zeros_like(samples), samples)
+        samples = torch.where(samples < arg.threshold_cut, torch.zeros_like(samples), samples)
         full_sample.append(samples)
         print("Done sampling Calolayer {}/44.".format(i))
     end_time = time.time()
