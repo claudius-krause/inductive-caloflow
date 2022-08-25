@@ -190,9 +190,9 @@ class GuidedCompositeTransform(transforms.CompositeTransform):
         return self._cascade(inputs, funcs, context, direction='inverse',
                              return_steps=return_steps, return_p=return_p)
 
-def build_flow(features, context_features, arg):
+def build_flow(features, context_features, arg, num_layers=1):
     """ returns build flow and optimizer """
-    flow_params_RQS = {'num_blocks': 1, # num of hidden layers per block
+    flow_params_RQS = {'num_blocks': num_layers, # num of hidden layers per block
                        'use_residual_blocks': False,
                        'use_batch_norm': False,
                        'dropout_probability': arg.dropout_probability,
@@ -572,7 +572,7 @@ if __name__ == '__main__':
                 2, args.device,
                 which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
-        flow_2, optimizer_2, schedule_2 = build_flow(LAYER_SIZE, 2, args)
+        flow_2, optimizer_2, schedule_2 = build_flow(LAYER_SIZE, 2, args, num_layers=2)
 
         if args.train:
             train_eval_flow_2(flow_2, optimizer_2, schedule_2, train_loader_2, test_loader_2, args)
@@ -605,7 +605,7 @@ if __name__ == '__main__':
                 3, args.device,
                 which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
-        flow_3, optimizer_3, schedule_3 = build_flow(LAYER_SIZE, 3+LAYER_SIZE, args)
+        flow_3, optimizer_3, schedule_3 = build_flow(LAYER_SIZE, 3+LAYER_SIZE, args, num_layers=2)
 
         if args.train:
             train_eval_flow_3(flow_3, optimizer_3, schedule_3, train_loader_3, test_loader_3, args)
@@ -624,7 +624,7 @@ if __name__ == '__main__':
             full_start_time = time.time()
             flow_1, _, _ = build_flow(DEPTH, 1, args)
             flow_1 = load_flow(flow_1, 1, args)
-            flow_2, _, _ = build_flow(LAYER_SIZE, 2, args)
+            flow_2, _, _ = build_flow(LAYER_SIZE, 2, args, num_layers=2)
             flow_2 = load_flow(flow_2, 2, args)
             flow_3 = load_flow(flow_3, 3, args)
             incident_energies, samples_1 = generate_flow_1(flow_1, args, num_events)
