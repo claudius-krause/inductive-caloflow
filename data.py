@@ -184,9 +184,9 @@ class CaloDataShowerShape(Dataset):
             energy_dep = add_noise(energy_dep, noise_level=self.noise_level)
             layer = add_noise(layer, noise_level=self.noise_level) #/self.normalization)
 
-            if self.which_layer != 0:
-                energy_dep_p = add_noise(energy_dep_p, noise_level=self.noise_level)
-                layer_p = add_noise(layer_p, noise_level=self.noise_level) #/self.normalization)
+            #if self.which_layer != 0: # _p not used in flow 2 training
+            energy_dep_p = add_noise(energy_dep_p, noise_level=self.noise_level)
+            layer_p = add_noise(layer_p, noise_level=self.noise_level) #/self.normalization)
 
         if self.do_normalization:
             #layer = layer/(energy_dep+self.noise_level)
