@@ -189,8 +189,10 @@ class CaloDataShowerShape(Dataset):
                 layer_p = add_noise(layer_p, noise_level=self.noise_level) #/self.normalization)
 
         if self.do_normalization:
-            layer = layer/(energy_dep+self.noise_level)
-            layer_p = layer_p/(energy_dep_p+self.noise_level)
+            #layer = layer/(energy_dep+self.noise_level)
+            #layer_p = layer_p/(energy_dep_p+self.noise_level)
+            layer = layer/layer.sum(axis=-1, keepdims=True)
+            layer_p = layer_p/layer_p.sum(axis=-1, keepdims=True)
 
             #energy_dep = energy_dep/self.normalization
             #energy_depn = energy_depn/self.normalization
