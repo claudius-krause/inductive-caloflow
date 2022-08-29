@@ -107,7 +107,8 @@ def inverse_logit(x, clamp_low=0., clamp_high=1.):
 def add_noise(input_array, noise_level=1e-4):
     """ adds a bit of noise """
     noise = (torch.rand(size=input_array.size())*noise_level).to(input_array.device)
-    return (input_array+noise)/(1.+noise_level)
+    return (input_array+noise)
+    #return (input_array+noise)/(1.+noise_level)
 
 def save_flow(model, number, arg):
     """ saves model to file """
@@ -326,8 +327,7 @@ def train_eval_flow_2(flow, optimizer, schedule, train_loader, test_loader, arg)
             shower = batch['layer'].to(arg.device)
             cond_inc = torch.log10(batch['energy'].to(arg.device))-4.5
             cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)/4.
-            cond = torch.vstack([cond_inc.T, cond_dep.T,
-                                 torch.zeros_like(shower, device=arg.device).T]).T
+            cond = torch.vstack([cond_inc.T, cond_dep.T]).T
             loss = - flow.log_prob(shower, cond).mean(0)
 
             optimizer.zero_grad()
@@ -362,8 +362,7 @@ def eval_flow_2(test_loader, flow, arg):
         shower = batch['layer'].to(arg.device)
         cond_inc = torch.log10(batch['energy'].to(arg.device))-4.5
         cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)/4.
-        cond = torch.vstack([cond_inc.T, cond_dep.T,
-                             torch.zeros_like(shower, device=arg.device).T]).T
+        cond = torch.vstack([cond_inc.T, cond_dep.T]).T
 
         loglike.append(flow.log_prob(shower, cond))
 
@@ -380,8 +379,7 @@ def generate_flow_2(flow, arg, incident_en, samp_1):
     start_time = time.time()
     cond_inc = torch.log10(incident_en.to(arg.device))-4.5
     cond_dep = logit_trafo(samp_1[:, 0].to(arg.device)/arg.normalization)/4.
-    cond = torch.vstack([cond_inc.T, cond_dep.T,
-                         torch.zeros(size=(len(incident_en), 144), device=arg.device).T]).T
+    cond = torch.vstack([cond_inc.T, cond_dep.T]).T
 
     samples = flow.sample(1, cond).reshape(len(cond), -1)
     samples = inverse_logit(samples)
@@ -577,8 +575,8 @@ if __name__ == '__main__':
                 2, args.device,
                 which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
-        flow_2, optimizer_2, schedule_2 = build_flow(LAYER_SIZE, 2+LAYER_SIZE, args,
-                                                     args.hidden_size, num_layers=2)
+        flow_2, optimizer_2, schedule_2 = build_flow(LAYER_SIZE, 2, args, args.hidden_size,
+                                                     num_layers=2)
 
         if args.train:
             train_eval_flow_2(flow_2, optimizer_2, schedule_2, train_loader_2, test_loader_2, args)
