@@ -598,12 +598,14 @@ if __name__ == '__main__':
 
             geant_ref = os.path.join(args.data_dir, 'dataset_{}_2.hdf5'.format(args.which_ds))
             geant = h5py.File(geant_ref, 'r')
-            incicent_energies = geant['incident_energies'][:10000]
+            incicent_energies = torch.tensor(geant['incident_energies'][:10000]).to(args.device)
             geant_shower = geant['showers'][:10000]
-            samples_1 = geant_shower.reshape(-1, 45, 144).sum(axis=-1)
+            samples_1 = torch.tensor(geant_shower.reshape(-1, 45, 144).sum(axis=-1)).to(args.device)
             geant.close()
 
             samples_2 = generate_flow_2(flow_2, args, incident_energies, samples_1)
+            np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies.cpu().numpy())
+            np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1.cpu().numpy())
             np.save(os.path.join(args.output_dir, 'samples_2.npy'), samples_2.cpu().numpy())
 
     if bin(args.which_flow)[-3] == '1':
