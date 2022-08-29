@@ -596,7 +596,15 @@ if __name__ == '__main__':
             flow_1, _, _ = build_flow(DEPTH, 1, args, args.hidden_size)
             flow_1 = load_flow(flow_1, 1, args)
             flow_2 = load_flow(flow_2, 2, args)
-            incident_energies, samples_1 = generate_flow_1(flow_1, args, 10000)
+            #incident_energies, samples_1 = generate_flow_1(flow_1, args, 10000)
+
+            geant_ref = os.path.join(args.data_dir, 'dataset_{}_2.hdf5'.format(args.which_ds))
+            geant = h5py.File(geant_ref, 'r')
+            incicent_energies = geant['incident_energies'][:10000]
+            geant_shower = geant['showers'][:10000]
+            samples_1 = geant_shower.reshape(-1, 45, 144).sum(axis=-1)
+            geant.close()
+
             samples_2 = generate_flow_2(flow_2, args, incident_energies, samples_1)
             np.save(os.path.join(args.output_dir, 'samples_2.npy'), samples_2.cpu().numpy())
 
