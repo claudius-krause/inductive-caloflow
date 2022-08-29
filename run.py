@@ -107,7 +107,8 @@ def inverse_logit(x, clamp_low=0., clamp_high=1.):
 def add_noise(input_array, noise_level=1e-4):
     """ adds a bit of noise """
     noise = (torch.rand(size=input_array.size())*noise_level).to(input_array.device)
-    return (input_array+noise)/(1.+noise_level)
+    return (input_array+noise)
+    #return (input_array+noise)/(1.+noise_level)
 
 def save_flow(model, number, arg):
     """ saves model to file """

@@ -15,7 +15,8 @@ from torch.utils.data import Dataset, DataLoader
 
 def add_noise(input_array, noise_level=1e-4):
     noise = np.random.rand(*input_array.shape)*noise_level
-    return (input_array+noise)/(1.+noise_level)
+    return input_array+noise
+    #return (input_array+noise)/(1.+noise_level)
 
 ALPHA = 1e-6
 def logit(x):
