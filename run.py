@@ -329,7 +329,6 @@ def train_eval_flow_2(flow, optimizer, schedule, train_loader, test_loader, arg)
             cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)/4.
             cond = torch.vstack([cond_inc.T, cond_dep.T]).T
             loss = - flow.log_prob(shower, cond).mean(0)
-
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -339,7 +338,6 @@ def train_eval_flow_2(flow, optimizer, schedule, train_loader, test_loader, arg)
                 print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
                     epoch+1, num_epochs, idx+1, len(train_loader), loss.item()),
                       file=open(arg.results_file, 'a'))
-
         logprb_mean, logprb_std = eval_flow_2(test_loader, flow, arg)
 
         output = 'Evaluate (epoch {}) -- '.format(epoch+1) +\
@@ -594,15 +592,7 @@ if __name__ == '__main__':
             flow_1, _, _ = build_flow(DEPTH, 1, args, args.hidden_size)
             flow_1 = load_flow(flow_1, 1, args)
             flow_2 = load_flow(flow_2, 2, args)
-            #incident_energies, samples_1 = generate_flow_1(flow_1, args, 10000)
-
-            geant_ref = os.path.join(args.data_dir, 'dataset_{}_2.hdf5'.format(args.which_ds))
-            geant = h5py.File(geant_ref, 'r')
-            incicent_energies = torch.tensor(geant['incident_energies'][:10000]).to(args.device)
-            geant_shower = geant['showers'][:10000]
-            samples_1 = torch.tensor(geant_shower.reshape(-1, 45, 144).sum(axis=-1)).to(args.device)
-            geant.close()
-
+            incident_energies, samples_1 = generate_flow_1(flow_1, args, 10000)
             samples_2 = generate_flow_2(flow_2, args, incident_energies, samples_1)
             np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies.cpu().numpy())
             np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1.cpu().numpy())
@@ -647,6 +637,9 @@ if __name__ == '__main__':
             samples_3 = generate_flow_3(flow_3, args, incident_energies, samples_1, samples_2)
             full_end_time = time.time()
             save_to_file(incident_energies.cpu().numpy(), samples_3.cpu().numpy(), args)
+            np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies.cpu().numpy())
+            np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1.cpu().numpy())
+            np.save(os.path.join(args.output_dir, 'samples_2.npy'), samples_2.cpu().numpy())
 
             full_total_time = full_end_time - full_start_time
             time_str = "Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
