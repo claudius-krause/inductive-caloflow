@@ -107,7 +107,7 @@ def inverse_logit(x, clamp_low=0., clamp_high=1.):
 def add_noise(input_array, noise_level=1e-4):
     """ adds a bit of noise """
     noise = (torch.rand(size=input_array.size())*noise_level).to(input_array.device)
-    return (input_array+noise)
+    return input_array+noise
     #return (input_array+noise)/(1.+noise_level)
 
 def save_flow(model, number, arg):
@@ -381,7 +381,8 @@ def generate_flow_2(flow, arg, incident_en, samp_1):
 
     samples = flow.sample(1, cond).reshape(len(cond), -1)
     samples = inverse_logit(samples)
-    samples = samples/samples.sum(dim=-1, keepdims=True)* samp_1[:, 0].reshape(-1, 1)
+    #samples = samples/samples.sum(dim=-1, keepdims=True)* samp_1[:, 0].reshape(-1, 1)
+    samples = samples * samp_1[:, 0].reshape(-1, 1)
     samples = torch.where(samples < arg.threshold_cut, torch.zeros_like(samples), samples)
     end_time = time.time()
     total_time = end_time-start_time
@@ -480,7 +481,8 @@ def generate_flow_3(flow, arg, incident_en, samp_1, samp_2):
         cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T]).T
         samples = flow.sample(1, cond).reshape(len(cond), -1)
         samples = inverse_logit(samples)
-        samples = samples/samples.sum(dim=-1, keepdims=True)* samp_1[:, i].reshape(-1, 1)
+        #samples = samples/samples.sum(dim=-1, keepdims=True)* samp_1[:, i].reshape(-1, 1)
+        samples = samples * samp_1[:, i].reshape(-1, 1)
         samples = torch.where(samples < arg.threshold_cut, torch.zeros_like(samples), samples)
         full_sample.append(samples)
         print("Done sampling Calolayer {}/44.".format(i))
@@ -505,6 +507,52 @@ def save_to_file(incident, shower, arg):
     dataset_file.create_dataset('showers',
                                 data=shower.reshape(len(shower), -1), compression='gzip')
     dataset_file.close()
+
+def renormalize_and_cut(raw_samps, target_en, thres):
+    """ renormalizes raw samples, such that they sum to target energy
+        sets all voxel below threshold to 0
+        ensures that both conditions above hold simultaneously
+        avoids for loops!
+    """
+    len_batch, num_voxel = raw_samps.size()
+    # sort voxel by energy
+    sorted_showers, sorted_showers_idx = torch.sort(raw_samps, dim=-1)
+
+    # that is equivalent to a reverse cumsum. element i is given by (sum elements >= i)
+    # in the context here this means: index i is the energy of the layer if the i lowest voxel
+    # are set to 0
+    summed_showers = sorted_showers + torch.sum(sorted_showers, dim=-1, keepdims=True) -\
+        torch.cumsum(sorted_showers, dim=-1)
+
+    # renormalization candidates. target E_i divided by the layer energy from above
+    renorm_cand = target_en.view(-1, 1) / summed_showers
+
+    # assume candidate and compute value of non-zero minimum after cut and renorm.
+    renorm_showers_pivot = sorted_showers * renorm_cand
+
+    # check which of those are above the desired cut, and find their index.
+    # set index to max if below cut.
+    # renorm to be used is then min of that
+    selected_idx = torch.where(
+        torch.gt(renorm_showers_pivot, thres),
+        torch.arange(num_voxel).repeat(len_batch, 1),
+        (num_voxel*torch.ones((len_batch, num_voxel))).long()).min(dim=-1, keepdims=True)[0]
+    zero_mask = torch.where((torch.arange(num_voxel).repeat(len_batch, 1) < selected_idx),
+                            torch.zeros_like(raw_samps), torch.ones_like(raw_samps))
+    zero_mask = torch.gather(zero_mask, -1, torch.argsort(sorted_showers_idx))
+
+    # now get the renormalization factor
+    renorm = torch.gather(torch.cat((renorm_cand, torch.zeros(len_batch, 1)), dim=-1), -1,
+                          selected_idx)
+
+    # do the renormalization
+    renormed_showers = raw_samps * renorm
+
+    # cut away the too dim voxel (threshold=cut does not work!)
+    cut_renormed_showers = renormed_showers * zero_mask
+
+    return cut_renormed_showers
+
 
 ###################################################################################################
 #######################################   running the code   ######################################
