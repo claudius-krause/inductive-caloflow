@@ -607,9 +607,20 @@ if __name__ == '__main__':
 
         if args.generate:
             flow_1 = load_flow(flow_1, 1, args)
-            incident_energies, samples_1 = generate_flow_1(flow_1, args, 10000)
-            np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies.cpu().numpy())
-            np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1.cpu().numpy())
+            incident_energies = []
+            samples_1 = []
+            for gen_batch in range(10):
+                incident_energies_loc, samples_1_loc = generate_flow_1(flow_1, args, 10000)
+                np.save(os.path.join(args.output_dir, 'e_inc_1_{}.npy'.format(gen_batch)),
+                        incident_energies_loc.cpu().numpy())
+                np.save(os.path.join(args.output_dir, 'samples_1_{}.npy'.format(gen_batch)),
+                        samples_1_loc.cpu().numpy())
+                incident_energies.append(incident_energies_loc)
+                samples_1.append(samples_1_loc)
+            incident_energies = np.concatenate([*incident_energies])
+            samples_1 = np.concatenate([*samples_1])
+            np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies)
+            np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1)
 
     if bin(args.which_flow)[-2] == '1':
         print("Working on Flow 2")
@@ -640,11 +651,27 @@ if __name__ == '__main__':
             flow_1, _, _ = build_flow(DEPTH, 1, args, args.hidden_size)
             flow_1 = load_flow(flow_1, 1, args)
             flow_2 = load_flow(flow_2, 2, args)
-            incident_energies, samples_1 = generate_flow_1(flow_1, args, 10000)
-            samples_2 = generate_flow_2(flow_2, args, incident_energies, samples_1)
-            np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies.cpu().numpy())
-            np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1.cpu().numpy())
-            np.save(os.path.join(args.output_dir, 'samples_2.npy'), samples_2.cpu().numpy())
+            incident_energies = []
+            samples_1 = []
+            samples_2 = []
+            for gen_batch in range(10):
+                incident_energies_loc, samples_1_loc = generate_flow_1(flow_1, args, 10000)
+                np.save(os.path.join(args.output_dir, 'e_inc_1_{}.npy'.format(gen_batch)),
+                        incident_energies_loc.cpu().numpy())
+                np.save(os.path.join(args.output_dir, 'samples_1_{}.npy'.format(gen_batch)),
+                        samples_1_loc.cpu().numpy())
+                incident_energies.append(incident_energies_loc)
+                samples_1.append(samples_1_loc)
+                samples_2_loc = generate_flow_2(flow_2, args, incident_energies_loc, samples_1_loc)
+                np.save(os.path.join(args.output_dir, 'samples_2_{}.npy'.format(gen_batch)),
+                        samples_2_loc.cpu().numpy())
+                samples_2.append(samples_2_loc)
+            incident_energies = np.concatenate([*incident_energies])
+            samples_1 = np.concatenate([*samples_1])
+            samples_2 = np.concatenate([*samples_2])
+            np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies)
+            np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1)
+            np.save(os.path.join(args.output_dir, 'samples_2.npy'), samples_2)
 
     if bin(args.which_flow)[-3] == '1':
         # TODO: one-hot encoded layer-number
@@ -680,14 +707,36 @@ if __name__ == '__main__':
             flow_2, _, _ = build_flow(LAYER_SIZE, 2, args, args.hidden_size, num_layers=2)
             flow_2 = load_flow(flow_2, 2, args)
             flow_3 = load_flow(flow_3, 3, args)
-            incident_energies, samples_1 = generate_flow_1(flow_1, args, num_events)
-            samples_2 = generate_flow_2(flow_2, args, incident_energies, samples_1)
-            samples_3 = generate_flow_3(flow_3, args, incident_energies, samples_1, samples_2)
+            incident_energies = []
+            samples_1 = []
+            samples_2 = []
+            samples_3 = []
+            for gen_batch in range(10):
+                incident_energies_loc, samples_1_loc = generate_flow_1(flow_1, args, num_events)
+                np.save(os.path.join(args.output_dir, 'e_inc_1_{}.npy'.format(gen_batch)),
+                        incident_energies_loc.cpu().numpy())
+                np.save(os.path.join(args.output_dir, 'samples_1_{}.npy'.format(gen_batch)),
+                        samples_1_loc.cpu().numpy())
+                incident_energies.append(incident_energies_loc)
+                samples_1.append(samples_1_loc)
+                samples_2_loc = generate_flow_2(flow_2, args, incident_energies_loc, samples_1_loc)
+                np.save(os.path.join(args.output_dir, 'samples_2_{}.npy'.format(gen_batch)),
+                        samples_2_loc.cpu().numpy())
+                samples_2.append(samples_2_loc)
+                samples_3_loc = generate_flow_3(flow_3, args, incident_energies_loc,
+                                                samples_1_loc, samples_2_loc)
+                np.save(os.path.join(args.output_dir, 'samples_3_{}.npy'.format(gen_batch)),
+                        samples_3_loc.cpu().numpy())
+                samples_3.append(samples_3_loc)
+            incident_energies = np.concatenate([*incident_energies])
+            samples_1 = np.concatenate([*samples_1])
+            samples_2 = np.concatenate([*samples_2])
+            samples_3 = np.concatenate([*samples_3])
             full_end_time = time.time()
-            save_to_file(incident_energies.cpu().numpy(), samples_3.cpu().numpy(), args)
-            np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies.cpu().numpy())
-            np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1.cpu().numpy())
-            np.save(os.path.join(args.output_dir, 'samples_2.npy'), samples_2.cpu().numpy())
+            save_to_file(incident_energies, samples_3, args)
+            np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies)
+            np.save(os.path.join(args.output_dir, 'samples_1.npy'), samples_1)
+            np.save(os.path.join(args.output_dir, 'samples_2.npy'), samples_2)
 
             full_total_time = full_end_time - full_start_time
             time_str = "Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
