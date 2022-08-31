@@ -755,10 +755,12 @@ if __name__ == '__main__':
             full_total_time = full_end_time - full_start_time
             time_str = "Needed {:d} min and {:.1f} s to generate {} events in {} batch(es)."+\
                 " This means {:.2f} ms per event."
-            print(time_str.format(int(full_total_time//60), full_total_time%60, num_events,
+            print(time_str.format(int(full_total_time//60), full_total_time%60,
+                                  num_events*num_batches,
                                   num_batches, full_total_time*1e3 / (num_events*num_batches)))
             print(time_str.format(int(full_total_time//60), full_total_time%60, num_events,
-                                  num_batches, full_total_time*1e3 / (num_events*num_batches)),
+                                  num_batches*num_batches,
+                                  full_total_time*1e3 / (num_events*num_batches)),
                   file=open(args.results_file, 'a'))
 
 
