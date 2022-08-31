@@ -617,8 +617,8 @@ if __name__ == '__main__':
                         incident_energies_loc.cpu().numpy())
                 np.save(os.path.join(args.output_dir, 'samples_1_{}.npy'.format(gen_batch)),
                         samples_1_loc.cpu().numpy())
-                incident_energies.append(incident_energies_loc)
-                samples_1.append(samples_1_loc)
+                incident_energies.append(incident_energies_loc.cpu().numpy())
+                samples_1.append(samples_1_loc.cpu().numpy())
                 print("Done with generation batch {}/{}".format(gen_batch+1, num_batches))
                 print("Done with generation batch {}/{}".format(gen_batch+1, num_batches),
                       file=open(args.results_file, 'a'))
@@ -667,12 +667,12 @@ if __name__ == '__main__':
                         incident_energies_loc.cpu().numpy())
                 np.save(os.path.join(args.output_dir, 'samples_1_{}.npy'.format(gen_batch)),
                         samples_1_loc.cpu().numpy())
-                incident_energies.append(incident_energies_loc)
-                samples_1.append(samples_1_loc)
+                incident_energies.append(incident_energies_loc.cpu().numpy())
+                samples_1.append(samples_1_loc.cpu().numpy())
                 samples_2_loc = generate_flow_2(flow_2, args, incident_energies_loc, samples_1_loc)
                 np.save(os.path.join(args.output_dir, 'samples_2_{}.npy'.format(gen_batch)),
                         samples_2_loc.cpu().numpy())
-                samples_2.append(samples_2_loc)
+                samples_2.append(samples_2_loc.cpu().numpy())
                 print("Done with generation batch {}/{}".format(gen_batch+1, num_batches))
                 print("Done with generation batch {}/{}".format(gen_batch+1, num_batches),
                       file=open(args.results_file, 'a'))
@@ -728,17 +728,17 @@ if __name__ == '__main__':
                         incident_energies_loc.cpu().numpy())
                 np.save(os.path.join(args.output_dir, 'samples_1_{}.npy'.format(gen_batch)),
                         samples_1_loc.cpu().numpy())
-                incident_energies.append(incident_energies_loc)
-                samples_1.append(samples_1_loc)
+                incident_energies.append(incident_energies_loc.cpu().numpy())
+                samples_1.append(samples_1_loc.cpu().numpy())
                 samples_2_loc = generate_flow_2(flow_2, args, incident_energies_loc, samples_1_loc)
                 np.save(os.path.join(args.output_dir, 'samples_2_{}.npy'.format(gen_batch)),
                         samples_2_loc.cpu().numpy())
-                samples_2.append(samples_2_loc)
+                samples_2.append(samples_2_loc.cpu().numpy())
                 samples_3_loc = generate_flow_3(flow_3, args, incident_energies_loc,
                                                 samples_1_loc, samples_2_loc)
                 np.save(os.path.join(args.output_dir, 'samples_3_{}.npy'.format(gen_batch)),
                         samples_3_loc.cpu().numpy())
-                samples_3.append(samples_3_loc)
+                samples_3.append(samples_3_loc.cpu().numpy())
                 print("Done with generation batch {}/{}".format(gen_batch+1, num_batches))
                 print("Done with generation batch {}/{}".format(gen_batch+1, num_batches),
                       file=open(args.results_file, 'a'))
