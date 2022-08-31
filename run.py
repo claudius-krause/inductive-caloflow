@@ -619,6 +619,9 @@ if __name__ == '__main__':
                         samples_1_loc.cpu().numpy())
                 incident_energies.append(incident_energies_loc)
                 samples_1.append(samples_1_loc)
+                print("Done with generation batch {}/{}".format(gen_batch+1, num_batches))
+                print("Done with generation batch {}/{}".format(gen_batch+1, num_batches),
+                      file=open(args.results_file, 'a'))
             incident_energies = np.concatenate([*incident_energies])
             samples_1 = np.concatenate([*samples_1])
             np.save(os.path.join(args.output_dir, 'e_inc_1.npy'), incident_energies)
@@ -670,6 +673,9 @@ if __name__ == '__main__':
                 np.save(os.path.join(args.output_dir, 'samples_2_{}.npy'.format(gen_batch)),
                         samples_2_loc.cpu().numpy())
                 samples_2.append(samples_2_loc)
+                print("Done with generation batch {}/{}".format(gen_batch+1, num_batches))
+                print("Done with generation batch {}/{}".format(gen_batch+1, num_batches),
+                      file=open(args.results_file, 'a'))
             incident_energies = np.concatenate([*incident_energies])
             samples_1 = np.concatenate([*samples_1])
             samples_2 = np.concatenate([*samples_2])
@@ -733,6 +739,9 @@ if __name__ == '__main__':
                 np.save(os.path.join(args.output_dir, 'samples_3_{}.npy'.format(gen_batch)),
                         samples_3_loc.cpu().numpy())
                 samples_3.append(samples_3_loc)
+                print("Done with generation batch {}/{}".format(gen_batch+1, num_batches))
+                print("Done with generation batch {}/{}".format(gen_batch+1, num_batches),
+                      file=open(args.results_file, 'a'))
             incident_energies = np.concatenate([*incident_energies])
             samples_1 = np.concatenate([*samples_1])
             samples_2 = np.concatenate([*samples_2])
