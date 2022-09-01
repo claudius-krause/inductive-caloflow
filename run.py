@@ -398,7 +398,7 @@ def generate_flow_2(flow, arg, incident_en, samp_1):
 def train_eval_flow_3(flow, optimizer, schedule, train_loader, test_loader, arg):
     """ train flow 3, learning p(I_n|I_(n-1), E_n, E_(n-1), E_inc) eval after each epoch"""
 
-    num_epochs = 20 # (dataset is 44x larger)
+    num_epochs = 30 # (dataset is 44x larger)
     best_LL = -np.inf
     for epoch in range(num_epochs):
         # train:
