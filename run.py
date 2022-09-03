@@ -242,7 +242,7 @@ def build_flow(features, context_features, arg, hidden_size, num_layers=1):
 def train_eval_flow_1(flow, optimizer, schedule, train_loader, test_loader, arg):
     """ train flow 1, learning p(E_i|E_inc), eval after each epoch """
 
-    num_epochs = 600
+    num_epochs = 750
     best_LL = -np.inf
     for epoch in range(num_epochs):
         # train:
@@ -398,7 +398,7 @@ def generate_flow_2(flow, arg, incident_en, samp_1):
 def train_eval_flow_3(flow, optimizer, schedule, train_loader, test_loader, arg):
     """ train flow 3, learning p(I_n|I_(n-1), E_n, E_(n-1), E_inc) eval after each epoch"""
 
-    num_epochs = 30 # (dataset is 44x larger)
+    num_epochs = 40 # (dataset is 44x larger)
     best_LL = -np.inf
     for epoch in range(num_epochs):
         # train:
@@ -432,6 +432,7 @@ def train_eval_flow_3(flow, optimizer, schedule, train_loader, test_loader, arg)
                 if logprb_mean > best_LL:
                     best_LL = logprb_mean
                     save_flow(flow, 3, arg)
+                schedule.step()
 
         logprb_mean, logprb_std = eval_flow_3(test_loader, flow, arg)
 
@@ -443,7 +444,6 @@ def train_eval_flow_3(flow, optimizer, schedule, train_loader, test_loader, arg)
         if logprb_mean > best_LL:
             best_LL = logprb_mean
             save_flow(flow, 3, arg)
-        schedule.step()
     flow = load_flow(flow, 3, arg)
 
 @torch.no_grad()
