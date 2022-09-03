@@ -653,8 +653,12 @@ if __name__ == '__main__':
                   file=open(args.results_file, 'a'))
 
         if args.generate:
-            num_events = 10000
-            num_batches = 10
+            if args.which_ds == '2':
+                num_events = 10000
+                num_batches = 10
+            else:
+                num_events = 5000
+                num_batches = 20
             flow_1, _, _ = build_flow(DEPTH, 1, args, args.hidden_size)
             flow_1 = load_flow(flow_1, 1, args)
             flow_2 = load_flow(flow_2, 2, args)
