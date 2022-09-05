@@ -398,8 +398,14 @@ def generate_flow_2(flow, arg, incident_en, samp_1):
 def train_eval_flow_3(flow, optimizer, schedule, train_loader, test_loader, arg):
     """ train flow 3, learning p(I_n|I_(n-1), E_n, E_(n-1), E_inc) eval after each epoch"""
 
-    num_epochs = 40 # (dataset is 44x larger)
-    best_LL = -np.inf
+    if arg.which_ds == '3':
+        num_epochs = 20
+    else:
+        num_epochs = 40 # (dataset is 44x larger)
+    if vars(arg).get('best_LL') is None:
+        best_LL = -np.inf
+    else:
+        best_LL = arg.best_LL
     for epoch in range(num_epochs):
         # train:
         for idx, batch in enumerate(train_loader):
@@ -446,6 +452,7 @@ def train_eval_flow_3(flow, optimizer, schedule, train_loader, test_loader, arg)
             best_LL = logprb_mean
             save_flow(flow, 3, arg)
     flow = load_flow(flow, 3, arg)
+    arg.best_LL = best_LL
 
 @torch.no_grad()
 def eval_flow_3(test_loader, flow, arg):
@@ -706,6 +713,14 @@ if __name__ == '__main__':
 
         if args.train:
             train_eval_flow_3(flow_3, optimizer_3, schedule_3, train_loader_3, test_loader_3, args)
+            if args.which_ds == '3':
+                # train dataset 3 in two turns, with 2 source files
+                train_loader_3, test_loader_3 = get_calo_dataloader(
+                    os.path.join(args.data_dir, 'dataset_{}_2.hdf5'.format(args.which_ds)),
+                    3, args.device,
+                    which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
+                train_eval_flow_3(flow_3, optimizer_3, schedule_3, train_loader_3, test_loader_3,
+                                  args)
 
         if args.evaluate:
             flow_3 = load_flow(flow_3, 3, args)
@@ -717,8 +732,12 @@ if __name__ == '__main__':
                   file=open(args.results_file, 'a'))
 
         if args.generate:
-            num_events = 10000
-            num_batches = 10
+            if args.which_ds == '2':
+                num_events = 10000
+                num_batches = 10
+            else:
+                num_events = 5000
+                num_batches = 20
             full_start_time = time.time()
             flow_1, _, _ = build_flow(DEPTH, 1, args, args.hidden_size)
             flow_1 = load_flow(flow_1, 1, args)
