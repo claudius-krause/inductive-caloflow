@@ -706,7 +706,8 @@ if __name__ == '__main__':
             train_loader_3, test_loader_3 = get_calo_dataloader(
                 os.path.join(args.data_dir, 'dataset_{}_1.hdf5'.format(args.which_ds)),
                 3, args.device,
-                which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
+                which_ds=args.which_ds, batch_size=args.batch_size,
+                small_file=(args.which_ds == '3'), **preprocessing_kwargs)
 
         flow_3, optimizer_3, schedule_3 = build_flow(LAYER_SIZE, 3+LAYER_SIZE+44, args,
                                                      args.hidden_size, num_layers=2)
@@ -717,7 +718,7 @@ if __name__ == '__main__':
                 # train dataset 3 in two turns, with 2 source files
                 train_loader_3, test_loader_3 = get_calo_dataloader(
                     os.path.join(args.data_dir, 'dataset_{}_2.hdf5'.format(args.which_ds)),
-                    3, args.device,
+                    3, args.device, small_file=(args.which_ds == '3'),
                     which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
                 train_eval_flow_3(flow_3, optimizer_3, schedule_3, train_loader_3, test_loader_3,
                                   args)

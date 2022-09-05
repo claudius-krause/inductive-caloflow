@@ -212,13 +212,18 @@ class CaloDataShowerShape(Dataset):
         return sample
 
 def get_calo_dataloader(path_to_file, which_flow, device, which_ds='2', batch_size=32,
-                        **preprocessing_kwargs):
+                        small_file=False, **preprocessing_kwargs):
     """ returns train/test dataloader for training each of the flows """
     kwargs = {'num_workers': 2, 'pin_memory': True} if device.type == 'cuda' else {}
 
-    data_length = 100000
-    train_length = int(0.7*data_length)
-    test_length = int(0.3*data_length)
+    if small_file:
+        data_length = 50000
+        train_length = 40000
+        test_length = 10000
+    else:
+        data_length = 100000
+        train_length = int(0.7*data_length)
+        test_length = int(0.3*data_length)
 
     if which_flow == 1:
         train_dataset = CaloDataLayerEnergy(path_to_file, which_ds=which_ds,
