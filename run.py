@@ -480,7 +480,8 @@ def generate_flow_3(flow, arg, incident_en, samp_1, samp_2):
         cond_dep_p = logit_trafo(samp_1[:, i-1].to(arg.device)/arg.normalization)
         cond_p = add_noise(full_sample[-1].to(arg.device), noise_level=arg.noise_level)
         cond_p = logit_trafo(cond_p / cond_p.sum(dim=-1, keepdims=True))
-        cond_num = F.one_hot((i*torch.ones(size=(len(cond_dep))))-1, num_classes=44).to(arg.device)
+        cond_num = F.one_hot((i*torch.ones(size=(len(cond_dep), )))-1,
+                             num_classes=44).to(arg.device)
         cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T, cond_num.T]).T
         samples = flow.sample(1, cond).reshape(len(cond), -1)
         samples = inverse_logit(samples)
