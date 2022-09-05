@@ -409,7 +409,8 @@ def train_eval_flow_3(flow, optimizer, schedule, train_loader, test_loader, arg)
             cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)
             cond_dep_p = logit_trafo(batch['energy_dep_p'].to(arg.device)/arg.normalization)
             cond_p = batch['layer_p'].to(arg.device)
-            cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T]).T
+            cond_num = F.one_hot(batch['layer_number']-1, num_classes=44)
+            cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T, cond_num.T]).T
             loss = - flow.log_prob(shower, cond).mean(0)
 
             optimizer.zero_grad()
@@ -457,7 +458,8 @@ def eval_flow_3(test_loader, flow, arg):
         cond_dep = logit_trafo(batch['energy_dep'].to(arg.device)/arg.normalization)
         cond_dep_p = logit_trafo(batch['energy_dep_p'].to(arg.device)/arg.normalization)
         cond_p = batch['layer_p'].to(arg.device)
-        cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T]).T
+        cond_num = F.one_hot(batch['layer_number']-1, num_classes=44)
+        cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T, cond_num.T]).T
         loglike.append(flow.log_prob(shower, cond))
 
     logprobs = torch.cat(loglike, dim=0)
@@ -478,7 +480,8 @@ def generate_flow_3(flow, arg, incident_en, samp_1, samp_2):
         cond_dep_p = logit_trafo(samp_1[:, i-1].to(arg.device)/arg.normalization)
         cond_p = add_noise(full_sample[-1].to(arg.device), noise_level=arg.noise_level)
         cond_p = logit_trafo(cond_p / cond_p.sum(dim=-1, keepdims=True))
-        cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T]).T
+        cond_num = F.one_hot((i*torch.ones(size=(len(cond_dep))))-1, num_classes=44)
+        cond = torch.vstack([cond_inc.T, cond_dep.T, cond_dep_p.T, cond_p.T, cond_num.T]).T
         samples = flow.sample(1, cond).reshape(len(cond), -1)
         samples = inverse_logit(samples)
         #samples = samples/samples.sum(dim=-1, keepdims=True)* samp_1[:, i].reshape(-1, 1)
@@ -688,7 +691,6 @@ if __name__ == '__main__':
             np.save(os.path.join(args.output_dir, 'samples_2.npy'), samples_2)
 
     if bin(args.which_flow)[-3] == '1':
-        # TODO: one-hot encoded layer-number
         print("Working on Flow 3")
         print("Working on Flow 3", file=open(args.results_file, 'a'))
 
@@ -698,7 +700,7 @@ if __name__ == '__main__':
                 3, args.device,
                 which_ds=args.which_ds, batch_size=args.batch_size, **preprocessing_kwargs)
 
-        flow_3, optimizer_3, schedule_3 = build_flow(LAYER_SIZE, 3+LAYER_SIZE, args,
+        flow_3, optimizer_3, schedule_3 = build_flow(LAYER_SIZE, 3+LAYER_SIZE+44, args,
                                                      args.hidden_size, num_layers=2)
 
         if args.train:
