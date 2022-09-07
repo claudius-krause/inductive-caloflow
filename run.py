@@ -401,7 +401,7 @@ def train_eval_flow_3(flow, optimizer, schedule, train_loader, test_loader, arg)
     if arg.which_ds == '3':
         num_epochs = 20
     else:
-        num_epochs = 40 # (dataset is 44x larger)
+        num_epochs = 60 # (dataset is 44x larger)
     if vars(arg).get('best_LL') is None:
         best_LL = -np.inf
     else:
