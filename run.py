@@ -710,7 +710,8 @@ if __name__ == '__main__':
                 small_file=(args.which_ds == '3'), **preprocessing_kwargs)
 
         flow_3, optimizer_3, schedule_3 = build_flow(LAYER_SIZE, 3+LAYER_SIZE+44, args,
-                                                     args.hidden_size, num_layers=2)
+                                                     args.hidden_size,
+                                                     num_layers=4-int(args.which_ds))
 
         if args.train:
             train_eval_flow_3(flow_3, optimizer_3, schedule_3, train_loader_3, test_loader_3, args)
