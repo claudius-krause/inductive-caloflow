@@ -716,6 +716,8 @@ if __name__ == '__main__':
         if args.train:
             train_eval_flow_3(flow_3, optimizer_3, schedule_3, train_loader_3, test_loader_3, args)
             if args.which_ds == '3':
+                print("Switching to 2nd dataloader now ...")
+                print("Switching to 2nd dataloader now ...", file=open(args.results_file, 'a'))
                 # train dataset 3 in two turns, with 2 source files
                 del train_loader_3, test_loader_3
                 train_loader_3, test_loader_3 = get_calo_dataloader(
