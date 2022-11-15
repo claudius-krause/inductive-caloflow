@@ -742,7 +742,7 @@ if __name__ == '__main__':
                 num_batches = 10
             else:
                 num_events = 5000
-                num_batches = 20
+                num_batches = 10
             full_start_time = time.time()
             flow_1, _, _ = build_flow(DEPTH, 1, args, args.hidden_size)
             flow_1 = load_flow(flow_1, 1, args)
@@ -773,6 +773,7 @@ if __name__ == '__main__':
                 print("Done with generation batch {}/{}".format(gen_batch+1, num_batches))
                 print("Done with generation batch {}/{}".format(gen_batch+1, num_batches),
                       file=open(args.results_file, 'a'))
+                del samples_3_loc
             incident_energies = np.concatenate([*incident_energies])
             samples_1 = np.concatenate([*samples_1])
             samples_2 = np.concatenate([*samples_2])
