@@ -181,6 +181,11 @@ class CaloDataShowerShape(Dataset):
         energy_dep = self.E_dep[idx]
         energy_dep_p = self.E_dep_p[idx]
         layer_number = self.layer_number[idx]
+
+        # check which layer has all 0s
+        layer_with_0s = ~layer.sum(axis=-1).astype(bool)
+        layer_with_0s_p = ~layer_p.sum(axis=-1).astype(bool)
+
         if self.with_noise:
             energy_dep = add_noise(energy_dep, noise_level=self.noise_level)
             layer = add_noise(layer, noise_level=self.noise_level) #/self.normalization)
@@ -192,8 +197,9 @@ class CaloDataShowerShape(Dataset):
         if self.do_normalization:
             #layer = layer/(energy_dep+self.noise_level)
             #layer_p = layer_p/(energy_dep_p+self.noise_level)
-            layer = layer/layer.sum(axis=-1, keepdims=True)
-            layer_p = layer_p/layer_p.sum(axis=-1, keepdims=True)
+            layer = np.where(layer_with_0s, layer, layer/layer.sum(axis=-1, keepdims=True))
+            layer_p = np.where(layer_with_0s_p, layer_p,
+                               layer_p/layer_p.sum(axis=-1, keepdims=True))
 
             #energy_dep = energy_dep/self.normalization
             #energy_depn = energy_depn/self.normalization
