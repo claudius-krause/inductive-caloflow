@@ -17,7 +17,7 @@ def add_noise(input_array, noise_level=1e-4):
     noise = np.random.rand(*input_array.shape)*noise_level
     return input_array+noise
 
-ALPHA = 1e-6 
+ALPHA = 1e-6
 def logit(x):
     """ returns logit of input """
     return np.log(x / (1.0 - x))
