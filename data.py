@@ -1,7 +1,7 @@
 # pylint: disable=invalid-name
 """ Dataloader for calorimeter data of the CaloChallenge, datasets 2 and 3.
 
-    by Claudius Krause, Matthew Buckley, Gopolang Mohlabeng, David Shih
+    by Matthew Buckley, Claudius Krause, Ian Pang and David Shih
 
 """
 
@@ -16,7 +16,6 @@ from torch.utils.data import Dataset, DataLoader
 def add_noise(input_array, noise_level=1e-4):
     noise = np.random.rand(*input_array.shape)*noise_level
     return input_array+noise
-    #return (input_array+noise)/(1.+noise_level)
 
 ALPHA = 1e-6
 def logit(x):
@@ -181,35 +180,23 @@ class CaloDataShowerShape(Dataset):
         energy_dep = self.E_dep[idx]
         energy_dep_p = self.E_dep_p[idx]
         layer_number = self.layer_number[idx]
-
-        # check which layer has all 0s
-        layer_with_0s = ~layer.sum(axis=-1).astype(bool)
-        layer_with_0s_p = ~layer_p.sum(axis=-1).astype(bool)
-
         if self.with_noise:
             energy_dep = add_noise(energy_dep, noise_level=self.noise_level)
-            layer = add_noise(layer, noise_level=self.noise_level) #/self.normalization)
+            layer = add_noise(layer, noise_level=self.noise_level)
 
             #if self.which_layer != 0: # _p not used in flow 2 training
             energy_dep_p = add_noise(energy_dep_p, noise_level=self.noise_level)
-            layer_p = add_noise(layer_p, noise_level=self.noise_level) #/self.normalization)
+            layer_p = add_noise(layer_p, noise_level=self.noise_level) 
 
         if self.do_normalization:
-            #layer = layer/(energy_dep+self.noise_level)
-            #layer_p = layer_p/(energy_dep_p+self.noise_level)
-            layer = np.where(layer_with_0s, layer, layer/layer.sum(axis=-1, keepdims=True))
-            layer_p = np.where(layer_with_0s_p, layer_p,
-                               layer_p/layer_p.sum(axis=-1, keepdims=True))
-
-            #energy_dep = energy_dep/self.normalization
-            #energy_depn = energy_depn/self.normalization
+            layer = layer/layer.sum(axis=-1, keepdims=True)
+            layer_p = layer_p/layer_p.sum(axis=-1, keepdims=True)
 
         if self.apply_logit:
             layer = logit_trafo(layer)
-            #energy_dep = logit_trafo(energy_dep)
+            
             if self.which_layer != 0:
                 layer_p = logit_trafo(layer_p)
-                #energy_dep_p = logit_trafo(energy_depn)
 
         sample = {'layer': layer, 'layer_p': layer_p, 'energy': energy,
                   'energy_dep': energy_dep, 'energy_dep_p': energy_dep_p,
